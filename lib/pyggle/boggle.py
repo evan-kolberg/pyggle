@@ -10,7 +10,7 @@ class Boggle:
 
         if not self.words:
             this_directory = os.path.abspath(os.path.dirname(__file__))
-            words_alpha_path = os.path.join(this_directory, "data", "words_alpha.txt")
+            words_alpha_path = os.path.join(this_directory, "data", "NWL2020_formatted.txt")
             
             with open(words_alpha_path, "r") as f:
                 self.words = [word.strip() for word in f]
