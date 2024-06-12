@@ -12,6 +12,3 @@ def words(boggle: Boggle) -> list[str]:
 
 def coords(boggle: Boggle) -> list[tuple[int, int]]:
     return boggle.get_coords()
-
-def score(boggle: Boggle) -> list[int]:
-    return boggle.get_score()

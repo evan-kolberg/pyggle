@@ -122,14 +122,14 @@ class Boggle:
                         result[word] = positions
 
     def __search(self, word: str, x: int, y: int, rows: int, cols: int, positions: list) -> bool:
-        if (x, y) in positions:
+        if (y, x) in positions: # swaped x and y - i believe the creator made a logical error
             return False
         if x < 0 or x >= rows or y < 0 or y >= cols:
             return False
         if self.board[x][y] != word[0]:
             return False
 
-        positions.append((x, y))
+        positions.append((y, x)) # same thing here
         
         if self.official:
             if word.startswith('qu'):
