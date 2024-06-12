@@ -1,12 +1,48 @@
 import os
-from typing import Union
+from typing import Union, List, Dict, Tuple
 from timeit import timeit
 
+class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_word = False
+
+class Trie:
+    def __init__(self, words: List[str]):
+        self.root = TrieNode()
+        for word in words:
+            self.insert(word)
+    
+    def insert(self, word: str) -> None:
+        node = self.root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = TrieNode()
+            node = node.children[char]
+        node.is_word = True
+
+    def search(self, word: str) -> bool:
+        node = self._search_prefix(word)
+        return node is not None and node.is_word
+
+    def starts_with(self, prefix: str) -> bool:
+        return self._search_prefix(prefix) is not None
+
+    def _search_prefix(self, prefix: str) -> Union[TrieNode, None]:
+        node = self.root
+        for char in prefix:
+            if char in node.children:
+                node = node.children[char]
+            else:
+                return None
+        return node
+
 class Boggle:
-    def __init__(self, board: Union[list[list[str]], str], words: list[str] = None, official: bool = False):
+    def __init__(self, board: Union[List[List[str]], str], words: List[str] = None, official: bool = False):
         self.board = board
         self.words = words
         self.official = official
+        self._solve_cache = None
 
         if not self.words:
             this_directory = os.path.abspath(os.path.dirname(__file__))
@@ -15,17 +51,19 @@ class Boggle:
             with open(words_alpha_path, "r") as f:
                 self.words = [word.strip() for word in f]
 
-        if self.__check_board():
+        if not self.__check_board():
             raise TypeError("Board must be a list of lists or string")
         
-        if self.__check_words():
+        if not self.__check_words():
             raise TypeError("Words must be a list of strings")
         
-        if self.__check_official():
+        if not self.__check_official():
             raise TypeError("Official must be a boolean")
 
         if isinstance(self.board, str):
             self.board = self.__bogglefy()
+
+        self.trie = Trie(self.words)
 
     def __print__(self) -> None:
         self.print_board()
@@ -47,7 +85,10 @@ class Boggle:
     def __contains__(self, word: str) -> bool:
         return word in self.get_words()
     
-    def solve(self) -> dict[str, list[tuple[int, int]]]:
+    def solve(self) -> Dict[str, List[Tuple[int, int]]]:
+        if self._solve_cache is not None:
+            return self._solve_cache
+
         if self.official and self.get_length() < 3:
             return {}
 
@@ -55,25 +96,21 @@ class Boggle:
         rows = len(self.board)
         cols = len(self.board[0])
         
-        for word in self.words:
-            self.__filter(word, [], rows, cols, result)
+        for i in range(rows):
+            for j in range(cols):
+                self.__search_from_cell(i, j, "", [], result)
 
+        self._solve_cache = result
         return result
 
     def get_length(self) -> int:
         return len(self.board) * len(self.board[0])
 
-    def get_words(self) -> list[str]:
-        if not self.solve():
-            return []
+    def get_words(self) -> List[str]:
+        return list(self.solve().keys())
 
-        return [key for key in self.solve().keys()]
-
-    def get_coords(self) -> list[tuple[int, int]]:
-        if not self.solve():
-            return []
-
-        return [value for value in self.solve().values()]
+    def get_coords(self) -> List[Tuple[int, int]]:
+        return list(self.solve().values())
 
     def time_solve(self) -> float:
         return timeit(self.solve, number=1)
@@ -90,65 +127,48 @@ class Boggle:
         print(self.__stringify())
 
     def __check_board(self) -> bool:
-        sublist_type = all(isinstance(sublist, list) for sublist in self.board)
-
-        return not (isinstance(self.board, list) and sublist_type) and not isinstance(self.board, str)
+        if isinstance(self.board, str):
+            return True
+        if isinstance(self.board, list) and all(isinstance(sublist, list) for sublist in self.board):
+            return True
+        return False
 
     def __check_words(self) -> bool:
-        return not isinstance(self.words, list)
+        return isinstance(self.words, list)
     
     def __check_official(self) -> bool:
-        return not isinstance(self.official, bool)
+        return isinstance(self.official, bool)
 
-    def __bogglefy(self) -> list[list[int]]:
+    def __bogglefy(self) -> List[List[int]]:
         return [list(row) for row in self.board.split()]
     
     def __stringify(self) -> str:
         return "\n".join([" ".join(row) for row in self.board])
 
-    def __filter(self, word: str, positions: list, rows: int, cols: int, result: dict) -> None:
-        if not self.official:
-            if len(word) <= self.get_length():
-                self.__algorithm(word, positions, rows, cols, result)
-        else:
-            if len(word) >= 3 and len(word) <= self.get_length():
-                self.__algorithm(word, positions, rows, cols, result)
+    def __search_from_cell(self, x: int, y: int, prefix: str, positions: List[Tuple[int, int]], result: Dict) -> None:
+        if (y, x) in positions:
+            return
 
-    def __algorithm(self, word: str, positions: list, rows: int, cols: int, result: dict) -> None:
-        for i in range(rows):
-            for j in range(cols):
-                if self.board[i][j] == word[0] and word not in result:
-                    if self.__search(word, i, j, rows, cols, positions):
-                        result[word] = positions
+        if x < 0 or x >= len(self.board) or y < 0 or y >= len(self.board[0]):
+            return
 
-    def __search(self, word: str, x: int, y: int, rows: int, cols: int, positions: list) -> bool:
-        if (y, x) in positions: # swaped x and y - i believe the creator made a logical error
-            return False
-        if x < 0 or x >= rows or y < 0 or y >= cols:
-            return False
-        if self.board[x][y] != word[0]:
-            return False
+        char = self.board[x][y]
+        prefix += char
 
-        positions.append((y, x)) # same thing here
-        
-        if self.official:
-            if word.startswith('qu'):
-                return self.__traverse_directions(word[2:], x, y, rows, cols, positions)
-            elif word[0] == 'q':
-                return False
+        if not self.trie.starts_with(prefix):
+            return
 
-        if len(word) == 1:
-            return True
+        positions.append((y, x))
 
-        return self.__traverse_directions(word[1:], x, y, rows, cols, positions)
+        if self.trie.search(prefix):
+            if not self.official or len(prefix) >= 3:
+                result[prefix] = positions[:]
 
-    def __traverse_directions(self, word: str, x: int, y: int, rows: int, cols: int, positions: list) -> bool:
         for i in [-1, 0, 1]:
             for j in [-1, 0, 1]:
                 if i == 0 and j == 0:
-                    continue # skip current position when i = j = 0
-                if self.__search(word, x + i, y + j, rows, cols, positions):
-                    return True
+                    continue
+                self.__search_from_cell(x + i, y + j, prefix, positions, result)
 
         positions.pop()
-        return False
+
